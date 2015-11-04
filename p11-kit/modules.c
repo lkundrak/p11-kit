@@ -544,6 +544,23 @@ out:
 	return rv;
 }
 
+static p11_dict *
+_p11_conf_remote (const char *remote)
+{
+	p11_dict *configs;
+	p11_dict *map;
+
+	map = p11_dict_new (p11_dict_str_hash, p11_dict_str_equal, free, free);
+	p11_dict_set (map, strdup ("module"), strdup ("remote"));
+	p11_dict_set (map, strdup ("remote"), strdup (remote));
+
+	configs = p11_dict_new (p11_dict_str_hash, p11_dict_str_equal,
+	                        free, (p11_destroyer)p11_dict_free);
+	p11_dict_set (configs, strdup ("remote"), map);
+
+	return configs;
+}
+
 static CK_RV
 load_registered_modules_unlocked (void)
 {
@@ -555,6 +572,7 @@ load_registered_modules_unlocked (void)
 	int mode;
 	CK_RV rv;
 	bool critical;
+	const char *remote;
 
 	if (gl.config)
 		return CKR_OK;
@@ -566,10 +584,15 @@ load_registered_modules_unlocked (void)
 
 	assert (mode != CONF_USER_INVALID);
 
-	configs = _p11_conf_load_modules (mode,
-	                                  p11_config_package_modules,
-	                                  p11_config_system_modules,
-	                                  p11_config_user_modules);
+	remote = getenv ("P11_REMOTE_FD");
+	if (remote) {
+		configs = _p11_conf_remote (remote);
+	} else {
+		configs = _p11_conf_load_modules (mode,
+						  p11_config_package_modules,
+						  p11_config_system_modules,
+						  p11_config_user_modules);
+	}
 	if (configs == NULL) {
 		rv = CKR_GENERAL_ERROR;
 		p11_dict_free (config);
